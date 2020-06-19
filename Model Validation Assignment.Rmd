@@ -1,0 +1,194 @@
+---
+word_document: default
+output: word_document
+html_document: default
+title: "Model Validation Assignment"
+---
+#### Module 3  - Assignment 1
+##### Killman, Gail
+###### Model Validation Assignment
+
+#### Library required packages
+```{r warning=FALSE,message=FALSE}
+#install.packages("reader")
+#install.packages("gridExtra")                
+library(tidyverse)
+library(GGally)
+library(MASS)
+library(lmtest)
+library(caret)
+```
+
+#### Read in dataset
+```{r task 1}
+bike = read_csv("hour.csv")
+```
+```{r task 2 Examine the structure and summary of the dataset}
+str(bike) 
+summary(bike) 
+```
+#### Convert season to spring/summer/fall/winter
+```{r convert season_examine the structure and summary of the dataset}
+bike = bike %>% mutate(season = as_factor(as.character(season))) %>%
+mutate(season = fct_recode(season,
+"Spring" = "1",
+"Summer" = "2",
+"Fall" = "3",
+"Winter" = "4"))
+str(bike)
+summary(bike)
+```
+#### Convert yr/mnth/hr
+```{r convert yr mnth hr}
+bike = bike %>% mutate(yr = as_factor(as.character(yr)))
+bike = bike %>% mutate(mnth = as_factor(as.character(mnth)))
+bike = bike %>% mutate(hr = as_factor(as.character(hr)))
+str(bike)
+
+```
+  
+#### Convert the “holiday” variable to a factor and recode the levels from 0 to “NotHoliday” and 1 to “Holiday”.
+
+```{r convert holiday}
+bike = bike %>% mutate(holiday = as_factor(as.character(holiday))) %>%
+mutate(holiday = fct_recode(holiday,
+"NotHoliday" = "0",
+"Holiday" = "1"))
+```
+ 
+#### Convert “workingday” to a factor and recode the levels from 0 to “NotWorkingDay” and 1 to “WorkingDay”.
+
+```{r convert workingday}
+bike = bike %>% mutate(workingday = as_factor(as.character(workingday))) %>%
+mutate(workingday = fct_recode(workingday,
+"NotWorkingDay" = "0",
+"WorkingDay" = "1"))
+```
+  
+#### Convert “weathersit” to a factor and recode the levels. Level 1 should be “NoPrecip”, 2 should become
+“Misty”, 3 should become “LightPrecip”, and 4 should become “HeavyPrecip”.
+
+```{r convert weathersit}
+bike = bike %>% mutate(weathersit = as_factor(as.character(weathersit))) %>%
+mutate(weathersit = fct_recode(weathersit,
+"NoPrecip" = "1",
+"Misty" = "2",
+"LightPrecip" = "3",
+"HeavyPrecip" = "4"))
+```
+  
+#### Convert the “weekday” variable to a factor and recode the levels. Note that 6 is “Saturday” and 0 is “Sunday”. The rest of the days of the week are from 1 to 5, starting with “Monday”.
+
+```{r convert weekday}
+bike = bike %>% mutate(weekday = as_factor(as.character(weekday))) %>%
+mutate(weekday = fct_recode(weekday,
+"Monday" = "1",
+"Tuesday" = "2",
+"Wednesday" = "3",
+"Thursday" = "4",
+"Friday" = "5",
+"Saturday" = "6",
+"Sunday" = "0"))
+```
+  
+#### #Examine the dataset after the conversions
+```{r re-examine the structure and summary of the dataset}
+str(bike) 
+summary(bike) 
+```
+    
+#### Task 1: Split the data into training and testing sets. Your training set should have 70% of the data. Use a random number (set.seed) of 1234. Hint: Remember to specify the response variable when using the createDataPartition function.
+
+```{r task 1 Split the data}
+set.seed(1234)
+train.rows = createDataPartition(y = bike$count, p=0.7, list = FALSE) #70% in training
+train = slice(bike, train.rows)
+test = slice(bike, -train.rows)
+```
+  
+#### Task 2: How many rows of data are in each set (training and testing)?
+##### There are 12,167 rows / 17 columns in train.
+##### There are 5212 rows / 17 columns in test.
+   
+#### Task 3: Build a linear regression model (using the training set) to predict “count” using the variables “season”, “mnth”, “hr”, “holiday”, and “weekday”, “temp”, and “weathersit”. 
+
+```{r task 3 build regression model}
+mod1 = lm(count ~ season + mnth + hr + holiday + weekday + temp + weathersit, train) #create linear regression model
+summary(mod1) #examine the model
+```
+```{r task assumption 2}
+dwtest(mod1)
+```
+##### The results of the Durbin-Watson test suggests that the residuals are likely dependent since we reject the null hypothesis with a p-value less than 0.05. 
+
+
+#### Comment on the quality of the model. Be sure to note the Adjusted R-squared value.
+##### With an Adjusted r-squared value of 0.62, this appears to be a decent quality model, predictor p-values are < .05 for at least one of each dummy level variable, coefficient signs "sort of" make sense; however, I am still unsure of all of the negatives for so many levels of weekdays and mnth (could this also be multi-collinearity???) as this models has negative coefficents everyday but Friday and most months are negative as well. 
+
+One way to manage this is to use the natural log of price.
+
+At this point I question whether a linear regression model is a valid model.  I am suspect tht a logistic model might provide a better model.   
+  
+#### Task 4: Use the predict functions to make predictions (using your model from Task 3) on the training set. Hint: Be sure to store the predictions in an object, perhaps named “predict_train” or similar. It can be useful to “sanity check” your predictions. You can do this is one or more of several ways: 1) Use the “head” function to display the first six predictions corresponding to the first six rows in the data. 2) Examine a summary of the predictions. Are there any strange predictions? 3) Examine a histogram of predictions. 
+
+
+```{r Develop predictions on the train set}
+predict_train = predict(mod1, type="response") #develop predicted probabilities
+head(predict_train)
+summary(predict_train)
+```
+  
+```{r calculate the R squared value.}
+SSE = sum((train$count - predict_train)^2) #sum of squared residuals from model
+SST = sum((train$count - mean(train$count))^2) #sum of squared residuals from a "naive" model -- mean of y 
+1 - SSE/SST #definition of R square
+```  
+
+```{r create histogram of predictions}
+#Predict_train2 = data.frame(predict(mod1, type="response"))
+Predict_train2 = data.frame(predict(mod1, interval = "prediction"))
+summary(Predict_train2)
+ggplot(Predict_train2, aes(x=fit)) + geom_histogram()
+```
+  
+#### Does the distribution of predictions seem reasonable? Comment on the predictions.
+
+##### The histogram of predictions on train appear normally distributed with a slight dip in the middle; therefore, it does seem reasonable.  The count of total rental bikes for casual and registered being negative was initilly a concern but linear regression does not respect the bounds of 0. It's linear, always and everywhere. Linear regression may not be appropriate for values that need to be close to 0 but are strictly positive.  One way to manage this is to use the natural log or just overlook the negative values.
+  
+#### Task 5: Use the predict functions to make predictions (using your model from Task 3) on the testing set.
+
+```{r task 5 Develop predictions on the testing set}
+#predict_test =predict(mod1, test, type="response")
+predict_test = predict(mod1, newdata = test)
+head(predict_test)
+summary(predict_test)
+```
+  
+#### Test Distributions 
+```{r create histogram of predictions on test}
+Predict_test2 = data.frame(predict(mod1, interval = "prediction"))
+summary(Predict_test2)
+ggplot(Predict_test2, aes(x=fit)) + geom_histogram()
+```
+  
+#### As you did in Task 4, comment on the predictions.
+##### The histogram of predictions on test also appear normally distributed with a slight dip in the middel; therefore, it does seem reasonable.  
+  
+#### Task 6: Manually calculate the R squared value on the testing set. 
+  
+```{r task 6 manually calculate the R squared value on test}
+SSE = sum((test$count - predict_test)^2) #sum of squared residuals from model
+SST = sum((test$count - mean(test$count))^2) #sum of squared residuals from a "naive" model -- mean of y 
+1 - SSE/SST #definition of R square
+```
+  
+####  Comment on how this value compares to the model’s performance on the training set.
+##### Both the model's performance on train data set and test data predictions produced an r-squared value of .63.  The model buit on the training set has proven to perform similarly on new data so I would feel comfortable deploying this in a real world setting. I can safely say that both are valid models since performance on both data sets are similar.
+  
+#### Task 7: Describe how k-fold cross-validation differs from model validation via a training/testing split.
+##### k-fold splits the data into partiions (k), where k is a number; standard values = 3,5, or 10.  Then it builds k models one per each partition they we are "holding out". It holds out training and test data based on the k-fold value, repeating the process until complete.  Benefit - Can evaluate model on different partitions.  With the train/test split you actually control the % of data that goes into each data set by specifying a value for train using the createDataPartition function from caret package providing the response variable and percentage to go into train.  The split ensures that a representatitive sample of data goes into each data set.  
+
+
+
+
+
