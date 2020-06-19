@@ -1,0 +1,158 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+
+# Module 2  - Assignment 1
+## Killman, Gail
+### Simple Linear Regression Assignment
+
+
+#### Needed libraries  
+```{r warning=FALSE,message=FALSE}
+#install.packages("lmtest")
+library(tidyverse)
+library(GGally) #ggcorr and ggpairs
+library(car)
+library(lmtest)
+```
+  
+#### Task 1 - Read in dataset
+```{r task 1 load air dataset}
+air = airquality
+```
+
+```{r task 2 Examine the structure and summary of the dataset}
+str(air) 
+summary(air) 
+```
+  
+#### Task 2 - remove missing rows  
+```{r Get rid of missing data rows  }
+air2 = air %>% drop_na() #delete any row with an NA value
+str(air2) #check structure after the drop
+summary(air2)
+```
+  
+### How many rows and columns remain in this new (air2) data frame?  
+#### 111 rows and 6 columns remain in the new air2 data frame.  
+ 
+#### Task 3 - ggpairs and ggcorr for visualizations 
+```{r task 3 ggpairs}
+ggpairs(air2)
+```
+  
+```{r task 3 ggcorr}
+ggcorr(air2,label="TRUE")
+```  
+   
+### Which variable is most strongly correlated with the “Ozone” variable?  
+#### "Temp" is most strongly correlated with the "ozone" variable with a correlation factor of .7.
+
+### Which variable is least strongly correlated with the “Ozone” variable?  
+#### "Day" is least correlated with the "ozone" variable with a correlation factor of 0.  
+  
+#### Task 4 - Plot temp and ozone  
+
+```{r task 4 Plot Temp and Ozone}
+ggplot(air2, aes(x=Temp, y=Ozone))+
+  geom_point()
+```
+
+#### There appears to be a positive, linear relationship between Temp and Ozone.  As the Temp increases so does Ozone. There are a few high Temp, high Ozone outliers.
+
+#### Task 5 - Build a regression model with Temp to predict Ozone  
+```{r task 5 build model}
+model1 = lm(Ozone ~ Temp, air2) #create linear regression model
+summary(model1) #examine the model
+confint(model1, level=0.95)
+```
+  
+#### The slope cooefficient of a 95% CI results in a range of 1.964787 and 2.913433.
+  
+#### Task 6 - Build and plot a regression model with Temp to predict Ozone and plot using a regression line
+```{r task 6 plot regression model}
+model1 = lm(Ozone ~ Temp, air2) #create linear regression model
+summary(model1) #examine the model
+ggplot(model1,aes(x=Ozone,y=Temp)) + geom_point() + geom_smooth(method = "lm", se=FALSE, color = "red") + theme_bw()
+```
+
+#### Model is decent, not great but not bad, with an R-squared value of .48. THe 2 variables have a positive linear relatiobship.  The variable Temp is statistically significant with a p-value < .05. and Temp coefficient makes sense and has an intuitive sign. As Temp increases the Ozone value also increases.  THe model tends to underpredict and overpredict at various temps.  
+
+#### The regression line crosses the y-axis at -147.6461.  For every unit of temp we see a corresponding increase in ozone of 2.4391.
+
+#### task 7 - prediction when temp is 80
+```{r task 7 prediction when temp is 80}
+#Manually
+-147.6461 + 2.4391*80
+
+#Using predict function
+testdata = data.frame(Temp = c(80))
+predict(model1, newdata = testdata, interval = "predict")
+```
+  
+#### When Temp = 80 the Ozone value is 47.48272.  The lower range is  -0.1510188and the upper range is 95.11646.
+
+#### Plot predictions with boundaries
+```{r Plot prediction upper and lower boundries}
+#Prediction intervals
+temp_var = predict(model1, interval = "prediction")
+new_df = cbind(air2, temp_var)
+
+ggplot(new_df, aes(x = Temp, y = Ozone)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  geom_line(aes(y=lwr), color = "red", linetype = "dashed") +
+  geom_line(aes(y=upr), color = "red", linetype = "dashed") +
+  theme_bw() 
+```
+  
+#### Task 8 - test assumptions  
+```{r task 8 assumption 1}
+ggplot(new_df, aes(x = Temp, y = Ozone)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE, color = "red")
+```
+  
+#### **Assumption 1:** The predictor and response variable have a linear relationship.   
+  
+#### As noted in the above graph, it seems reasonable to say that there is a positive, linear relationship between these two variables. As temp increases so does ozone.
+
+#### **Assumption 2:** Model errors (residuals) are independent using the Durbin-Watson Test to examine independence of residuals. The dwtest function is from the lmtest package.
+  
+```{r task 8 assumption 2}
+dwtest(model1)
+```
+  
+#### The results of the Durbin-Watson test suggests that the residuals are likely independent since We fail to reject the null hypothesis with a p-value greater than 0.05. 
+
+#### **Assumption 3:** Model residuals exhibit constant variance  
+Examine a plot of residuals.  
+```{r task 8 assumption 3}
+air3 = air2 %>% mutate(resid1 = model1$residuals) #add the model residuals to our data frame
+ggplot(air3,aes(x=Temp,y=resid1)) + geom_point() +  geom_smooth(method = "lm", se = FALSE, color = "red") + theme_bw()
+```
+
+#### The residuals for our model should exhibit constant variance and they appear normally distributed. In the graph above, there does not appear to be change in the variance of residuals. The figure above does not show a violation of this assumption. As you look at this plot (from left to right) the spread (variance) of the residuals is fairly constant.  The plot almost displays a pattern of seasonaility and has a few outliers in warmer temperatures.
+
+#### **Assumption 4:** Model residuals are Normally-distributed.  Examine a histogram of the residuals. 
+  
+```{r task 8 assumption 4}
+ggplot(air3,aes(x=resid1)) + geom_histogram() + theme_bw()
+```
+
+#### The residuals histogram is definitely not exactly Normal. It is closer to normal up until 50; however, not a true bell curve.  The residuals are skewed to the right, mostly likely outliers.    
+
+#### An alternative to the histogram is the Normal Probability Plot. The qqPlot function is from the car package.  
+  
+```{r}
+qqPlot(model1)
+```
+  
+#### The Normal Probability Plot confirms what we saw in the histogram - deviation curvature at the beginning and end of line. The black points are closely aligned in a straight line closer to the center of the prediction line.  
+
+### Task 9 How might the model that you constructed in Task 5 be used? Are there any cautions or concerns that you would have when recommending the model for use?
+
+### Upon initial glance, the model constructed in Task 5 looks decent; the variable appears significant with a low p-value, the r-squared is ok, the predictor positive cooefficient makes sense, and temp predicting ozone is intuitive. Although this histogram residuals were not quite normal, the probablity plot is more closely aligned in the middle section so I would probably remove the outliers and use temp as a predictor of ozone.  Adding additional variables may construct a better model to explain the variance.  
+
